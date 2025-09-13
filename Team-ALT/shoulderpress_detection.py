@@ -1,85 +1,47 @@
-# shoulderpress_detection.py
 import cv2
-import mediapipe as mp
-import numpy as np
-import math
 import streamlit as st
+from pose_utils import pose, mp_drawing, mp_pose, calculate_angle
 
-# Initialize Mediapipe Pose
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
-mp_drawing = mp.solutions.drawing_utils
-
-# Function to calculate the angle between three points
-def calculate_angle(a, b, c):
-    a = np.array(a)
-    b = np.array(b)
-    c = np.array(c)
-
-    radians = math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(a[1] - b[1], a[0] - b[0])
-    angle = abs(radians * 180.0 / np.pi)
-    
-    return 360 - angle if angle > 180 else angle
-
-# Function to track shoulder press
 def shoulder_press_tracker():
     st.subheader("📹 Shoulder Press Tracker - Live Webcam Feed")
-    stframe = st.empty()  # Placeholder for video feed
-
+    stframe = st.empty()
     cap = cv2.VideoCapture(0)
+    arms_down = False
 
-    rep_count = 0
-    arms_down = False  # Initially, the arms are up
-
-    while cap.isOpened():
+    while cap.isOpened() and st.session_state.view == 'session':
         ret, frame = cap.read()
         if not ret:
-            st.error("Failed to capture webcam. Please check your camera settings.")
+            st.error("Failed to capture webcam.")
             break
-        
-        frame = cv2.flip(frame, 1)  # Flip for natural webcam view
+
+        frame = cv2.flip(frame, 1)
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = pose.process(frame_rgb)
 
         if results.pose_landmarks:
             mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-            # Extract landmarks for shoulder, elbow, and wrist
             landmarks = results.pose_landmarks.landmark
 
-            shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                        landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
-            elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                     landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
-            wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                     landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
-
+            shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x, landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+            elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x, landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+            wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x, landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
             angle = calculate_angle(shoulder, elbow, wrist)
 
-            # Shoulder press detection logic
             feedback = "Now Down!"
-            color = (0, 0, 255)  # Default Red
 
-            if angle > 160:  # Arms fully extended (up)
+            if angle > 160:
                 feedback = "Arms Up!"
-                color = (0, 255, 0)  # Green
                 arms_down = False
-            elif angle < 70:  # Arms fully down (lowered)
+            elif angle < 70:
                 feedback = "Go Up!"
-                color = (255, 165, 0)  # Orange
                 if not arms_down:
-                    rep_count += 1  # Count rep when arms go fully down
+                    st.session_state.rep_count += 1
                     arms_down = True
 
-            # Display feedback text
-            cv2.putText(frame, feedback, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+            cv2.putText(frame, feedback, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, f"Reps: {st.session_state.rep_count}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
 
-            # Display rep count
-            cv2.putText(frame, f"Reps: {rep_count}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-        # Convert frame to RGB before displaying in Streamlit
-        frame_rgb_display = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        stframe.image(frame_rgb_display, channels="RGB", use_container_width=True)
+        stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB", use_container_width=True)
 
     cap.release()
     cv2.destroyAllWindows()

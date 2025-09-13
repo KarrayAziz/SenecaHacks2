@@ -1,0 +1,11 @@
+# .streamlit/config.toml
+
+[client]
+toolbarMode = "minimal"
+
+showPagesNavigation = false
+[ui]
+hideTopBar = true
+
+[server]
+headless = true

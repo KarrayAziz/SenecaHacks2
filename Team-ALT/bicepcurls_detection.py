@@ -6,7 +6,28 @@ from pose_utils import pose, mp_drawing, mp_pose, calculate_angle
 
 def bicep_curl_tracker():
     st.subheader("📹 Bicep Curl Tracker - Live Webcam Feed")
-    stframe = st.empty()
+    
+    # Create columns for layout
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        stframe = st.empty()
+    
+    with col2:
+        # Stop button
+        if st.button("🛑 Stop Session", type="primary", use_container_width=True):
+            st.session_state.view = 'home'  # or whatever your home view is called
+            st.rerun()
+        
+        # Display current counts
+        st.metric("Right Curls", st.session_state.right_rep_count)
+        st.metric("Left Curls", st.session_state.left_rep_count)
+        
+        # Reset button (optional)
+        if st.button("🔄 Reset Counters", use_container_width=True):
+            st.session_state.right_rep_count = 0
+            st.session_state.left_rep_count = 0
+    
     cap = cv2.VideoCapture(0)
 
     # État des bras (ne doit pas être dans session_state, car il est géré à chaque frame)
@@ -19,7 +40,7 @@ def bicep_curl_tracker():
     COLOR_GREEN = (0, 255, 0)
 
     # Boucle principale qui s'arrête correctement lorsque l'utilisateur quitte la session
-    while cap.isOpened() and st.session_state.view == 'session':
+    while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             st.error("Failed to capture webcam. Please check your camera settings.")
@@ -125,3 +146,50 @@ def bicep_curl_tracker():
 
     cap.release()
     cv2.destroyAllWindows()
+
+
+def save_workout_session(user_id: int):
+    """Save the current bicep curl session data to the database"""
+    try:
+        # Calculate session metrics
+        total_reps = st.session_state.right_rep_count + st.session_state.left_rep_count
+        session_duration = datetime.now() - st.session_state.session_start_time
+        duration_minutes = int(session_duration.total_seconds() / 60)
+        
+        # Estimate calories burned (rough estimate: 5 calories per minute for bicep curls)
+        calories_burned = duration_minutes * 5.0
+        
+        # Calculate a basic form score (this could be enhanced with actual form analysis)
+        # For now, we'll use a simple metric based on rep consistency
+        form_score = min(8.5, 6.0 + (total_reps * 0.1))  # Simple scoring system
+        
+        # Initialize database connection and workout tracker
+        db_manager = DatabaseManager()
+        workout_tracker = WorkoutTracker(db_manager)
+        
+        # Save workout to database
+        success = workout_tracker.log_workout(
+            user_id=user_id,
+            exercise_type="Bicep Curls",
+            duration=duration_minutes,
+            reps=total_reps,
+            sets=1,  # Assuming one continuous set
+            calories_burned=calories_burned,
+            form_score=form_score,
+            notes=f"Right arm: {st.session_state.right_rep_count} reps, Left arm: {st.session_state.left_rep_count} reps"
+        )
+        
+        if success:
+            st.success(f"✅ Workout saved! {total_reps} total reps in {duration_minutes} minutes")
+        else:
+            st.error("❌ Failed to save workout data")
+            
+    except Exception as e:
+        st.error(f"❌ Error saving workout: {str(e)}")
+
+
+def reset_session_counters():
+    """Reset all session counters and start time"""
+    st.session_state.right_rep_count = 0
+    st.session_state.left_rep_count = 0
+    st.session_state.session_start_time = datetime.now()

@@ -12,8 +12,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-
-
 # Appliquer le style CSS et afficher la barre latérale
 load_css()
 render_sidebar()
@@ -164,7 +162,7 @@ exercises = [
         "name": "Bicep Curls", 
         "icon": "💪",
         "description": "Développement des biceps",
-        "page": "pages/bicepcurls_detection.py"
+        "page": "pages/05_Bicep_Curls.py"
     },
     {
         "name": "Deadlift",

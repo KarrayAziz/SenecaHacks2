@@ -11,5 +11,10 @@ plotly>=5.0.0
 matplotlib>=3.5.0
 
 
-
+groq
+python-dotenv
+speechrecognition
+edge-tts
+PyAudio
+streamlit
 plotly>=5.0.0

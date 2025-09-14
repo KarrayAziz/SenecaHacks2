@@ -3,7 +3,10 @@ import sys
 import os
 import json
 from datetime import datetime
-
+import asyncio
+import base64
+from ai_manager import AIManager
+from voice_manager import VoiceManager
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from auth.authenticator import get_authenticator
@@ -20,6 +23,8 @@ st.set_page_config(
 )
 
 # Hide default Streamlit navigation
+# Remplacez votre ancien bloc st.markdown par celui-ci
+
 st.markdown("""
 <style>
     [data-testid="stSidebarNav"] {display: none !important;}
@@ -37,8 +42,9 @@ st.markdown("""
         border-left: 4px solid #FF4B4B;
     }
     .bot-message {
-        background: #F0F2F6;
+        background: #F0F2F6; /* Fond gris clair */
         border-left: 4px solid #666;
+        color: #333333; /* <-- CORRECTION : Ajout du texte de couleur foncée */
     }
     .chat-container {
         height: 400px;
@@ -70,6 +76,16 @@ if not user_data:
 chat_history = ChatHistory(auth.db_manager)
 workout_tracker = WorkoutTracker(auth.db_manager)
 
+
+try:
+    if "ai_manager" not in st.session_state:
+        st.session_state.ai_manager = AIManager()
+    if "voice_manager" not in st.session_state:
+        st.session_state.voice_manager = VoiceManager()
+except Exception as e:
+    st.error(f"Erreur lors de l'initialisation des assistants IA/Voix: {e}")
+    st.stop()
+
 # Page title
 st.markdown(f"""
 <div style='text-align: center; padding: 1rem 0;'>
@@ -77,6 +93,17 @@ st.markdown(f"""
     <p style='color: #666; font-size: 1.1rem;'>Votre coach personnel intelligent</p>
 </div>
 """, unsafe_allow_html=True)
+
+
+def autoplay_audio(mp3_path: str):
+    with open(mp3_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    audio_html = f"""
+        <audio autoplay="true">
+            <source src="data:audio/mp3;base64,{b64}" type="audio/mp3">
+        </audio>
+    """
+    st.markdown(audio_html, unsafe_allow_html=True)
 
 # Initialize session state for chat
 if 'chat_messages' not in st.session_state:
@@ -86,135 +113,6 @@ if 'chat_messages' not in st.session_state:
     for chat in history:
         st.session_state.chat_messages.append({"role": "user", "content": chat['message']})
         st.session_state.chat_messages.append({"role": "assistant", "content": chat['response']})
-
-# Fitness knowledge base for simple responses
-def get_fitness_response(message: str, user_data: dict, workout_stats: dict) -> str:
-    """Simple rule-based chatbot with user context"""
-    message_lower = message.lower()
-    
-    # Personalized greeting
-    if any(word in message_lower for word in ['salut', 'bonjour', 'hello', 'hey']):
-        return f"Bonjour {user_data['name']} ! 👋 Comment puis-je vous aider avec votre fitness aujourd'hui ?"
-    
-    # Progress inquiries
-    if any(word in message_lower for word in ['progrès', 'progress', 'statistiques', 'stats']):
-        return f"""📊 Voici vos statistiques actuelles :
-        
-✅ **Séances totales :** {workout_stats['total_workouts']}
-🔥 **Calories brûlées :** {int(workout_stats['total_calories'])} cal
-📅 **Cette semaine :** {workout_stats['workouts_this_week']} séances
-⭐ **Score forme moyen :** {workout_stats['avg_form_score']}/10
-
-Continuez comme ça ! 💪"""
-    
-    # Weight/goal related
-    if any(word in message_lower for word in ['poids', 'weight', 'objectif', 'goal']):
-        current = user_data['current_weight']
-        goal = user_data['goal_weight']
-        if current and goal:
-            diff = current - goal
-            if diff > 0:
-                return f"🎯 Votre objectif est de perdre {diff:.1f} kg. Avec une alimentation équilibrée et {workout_stats['workouts_this_week']} séances par semaine, vous êtes sur la bonne voie !"
-            elif diff < 0:
-                return f"🎯 Votre objectif est de prendre {abs(diff):.1f} kg. N'oubliez pas de combiner exercices de force et nutrition adaptée !"
-            else:
-                return "🎉 Félicitations ! Vous avez atteint votre objectif de poids. Maintenant, concentrons-nous sur le maintien !"
-    
-    # Exercise recommendations
-    if any(word in message_lower for word in ['exercice', 'workout', 'entraînement', 'recommandation']):
-        level = user_data.get('fitness_level', 'Débutant').lower()
-        if 'débutant' in level:
-            return """🏃‍♂️ **Recommandations pour débutant :**
-
-• **Squats** - Excellent pour les jambes et fessiers
-• **Pompes** (ou version genoux) - Renforce le haut du corps  
-• **Planche** - Core et stabilité
-• **Marche rapide** - Cardio doux
-
-Commencez par 2-3 séances par semaine, 15-20 minutes chacune. Notre système d'analyse vous aidera à perfectionner votre forme ! 💪"""
-        
-        elif 'intermédiaire' in level:
-            return """🔥 **Programme intermédiaire :**
-
-• **Squats avec poids** - 3x12
-• **Développé-couché** - 3x10  
-• **Deadlifts** - 3x8
-• **Burpees** - 3x10
-• **HIIT** 2x par semaine
-
-4-5 séances par semaine recommandées. Utilisez notre analyse de forme pour optimiser chaque mouvement ! 🎯"""
-        
-        else:
-            return """💪 **Programme avancé :**
-
-• **Squats bulgares** - 4x12 chaque jambe
-• **Développé incliné** - 4x8
-• **Deadlifts sumo** - 4x6  
-• **Muscle-ups** - 4x5
-• **Sprints** - 8x30s
-
-5-6 séances par semaine. Votre niveau permet des mouvements complexes - notre IA vous aidera à maintenir la perfection technique ! 🚀"""
-    
-    # Nutrition advice
-    if any(word in message_lower for word in ['nutrition', 'alimentation', 'manger', 'régime', 'diet']):
-        goals = user_data.get('goals', '').lower()
-        if 'perte de poids' in goals:
-            return """🥗 **Conseils nutrition pour la perte de poids :**
-
-• **Déficit calorique** : 300-500 cal/jour
-• **Protéines** : 1.6-2g par kg de poids corporel
-• **Légumes** : La moitié de votre assiette
-• **Hydratation** : 2-3L d'eau par jour
-• **Repas** : 4-5 petits repas plutôt que 3 gros
-
-N'oubliez pas : 70% nutrition, 30% exercice pour la perte de poids ! 📊"""
-        
-        elif 'gain de muscle' in goals:
-            return """🍖 **Nutrition pour la prise de masse :**
-
-• **Surplus calorique** : 200-400 cal/jour  
-• **Protéines** : 2-2.5g par kg de poids corporel
-• **Glucides** : Autour de l'entraînement
-• **Lipides** : 0.8-1g par kg de poids corporel
-• **Post-workout** : Protéines + glucides dans les 30min
-
-La construction musculaire nécessite du carburant ! 💪"""
-        
-        else:
-            return """🍽️ **Conseils nutrition généraux :**
-
-• **Variété** : Tous les groupes alimentaires
-• **Timing** : Repas réguliers
-• **Qualité** : Aliments non transformés
-• **Portions** : Écoutez votre satiété
-• **Plaisir** : 80/20 rule - soyez strict 80% du temps
-
-Une alimentation équilibrée est la base de la performance ! ⚖️"""
-    
-    # Motivation
-    if any(word in message_lower for word in ['motivation', 'encouragement', 'difficile', 'abandonner']):
-        return f"""💪 **Message de motivation pour {user_data['name']} :**
-
-Vous avez déjà fait {workout_stats['total_workouts']} séances - c'est fantastique ! 🎉
-
-🌟 **Rappelez-vous :**
-• Chaque petit pas compte
-• La progression n'est pas toujours linéaire
-• Votre futur vous sera reconnaissant
-• Vous êtes plus fort que vos excuses
-
-{workout_stats['workouts_this_week']} séances cette semaine montrent votre détermination. Continuez, vous êtes sur la bonne voie ! 🚀"""
-    
-    # Default response
-    return """🤖 **Je suis votre assistant fitness !** Je peux vous aider avec :
-
-• 📊 **Vos statistiques** et progrès
-• 🏋️ **Recommandations d'exercices** personnalisées  
-• 🥗 **Conseils nutritionnels** selon vos objectifs
-• 💪 **Motivation** et encouragement
-• 🎯 **Planification** d'entraînement
-
-Posez-moi une question spécifique sur votre fitness ! 💬"""
 
 # Chat interface
 st.markdown("## 💬 Conversation")
@@ -240,43 +138,73 @@ with chat_container:
             </div>
             """, unsafe_allow_html=True)
 
-# Chat input
-st.markdown("### Posez votre question :")
+# --- NOUVELLE INTERFACE D'ENTRÉE (TEXTE + VOIX) ---
 
+# Fonction pour gérer la logique de réponse (pour ne pas la répéter)
+def handle_response(user_text):
+    # Add user message to UI
+    st.session_state.chat_messages.append({"role": "user", "content": user_text})
+    
+    # Generate response from the powerful AI
+    with st.spinner("🤖 L'assistant réfléchit..."):
+        response = st.session_state.ai_manager.get_response(user_text)
+    
+    # Add assistant response to UI
+    st.session_state.chat_messages.append({"role": "assistant", "content": response})
+    
+    # Save to database
+    chat_history.save_chat(user_data['id'], user_text, response)
+    
+    # Play TTS response
+    try:
+        mp3_path = asyncio.run(st.session_state.voice_manager.tts_to_file(response))
+        if mp3_path and os.path.exists(mp3_path):
+            autoplay_audio(mp3_path)
+            os.remove(mp3_path)
+    except Exception as e:
+        st.warning(f"Erreur Text-to-Speech : {e}")
+
+    st.rerun()
+
+# Input area
+st.markdown("### Posez votre question :")
 user_input = st.text_area(
     "Écrivez votre message...",
     key="user_input",
     height=100,
-    placeholder="Ex: Comment puis-je améliorer ma forme pour les squats ?"
+    placeholder="Ex: Recommande-moi un entraînement pour le haut du corps."
 )
 
-col1, col2 = st.columns([1, 4])
+# Buttons row
+col1, col2, col3 = st.columns([2, 2, 3])
+
 with col1:
     if st.button("📤 Envoyer", use_container_width=True, type="primary"):
         if user_input.strip():
-            # Add user message
-            st.session_state.chat_messages.append({"role": "user", "content": user_input})
-            
-            # Get workout stats for context
-            workout_stats = workout_tracker.get_workout_stats(user_data['id'])
-            
-            # Generate response
-            response = get_fitness_response(user_input, user_data, workout_stats)
-            
-            # Add assistant response
-            st.session_state.chat_messages.append({"role": "assistant", "content": response})
-            
-            # Save to database
-            chat_history.save_chat(user_data['id'], user_input, response)
-            
-            st.rerun()
+            handle_response(user_input.strip())
 
 with col2:
+    if st.button("🎤 Parler", use_container_width=True):
+        with st.spinner("🎙️ J'écoute... Parlez maintenant !"):
+            try:
+                # IMPORTANT: Assurez-vous d'avoir mis le bon index de micro dans voice_manager.py !
+                spoken_text = st.session_state.voice_manager.listen()
+                if spoken_text:
+                    handle_response(spoken_text)
+                else:
+                    st.toast("Je n'ai rien entendu. Veuillez réessayer.")
+            except Exception as e:
+                st.error(f"Erreur micro : {e}")
+
+with col3:
     if st.button("🗑️ Effacer conversation", use_container_width=True):
         st.session_state.chat_messages = []
+        # Optionnel: vous pourriez aussi vouloir effacer l'historique en base de données ici
         st.rerun()
 
-# Suggested questions
+# --- FIN DE LA NOUVELLE INTERFACE ---
+
+# Suggested questions (VERSION CORRIGÉE)
 st.markdown("### 💡 Questions suggérées :")
 
 suggestions = [
@@ -291,17 +219,8 @@ cols = st.columns(len(suggestions))
 for i, suggestion in enumerate(suggestions):
     with cols[i]:
         if st.button(suggestion, key=f"suggestion_{i}", use_container_width=True):
-            # Add suggested question as if user typed it
-            st.session_state.chat_messages.append({"role": "user", "content": suggestion})
-            
-            # Get response
-            workout_stats = workout_tracker.get_workout_stats(user_data['id'])
-            response = get_fitness_response(suggestion, user_data, workout_stats)
-            st.session_state.chat_messages.append({"role": "assistant", "content": response})
-            
-            # Save to database
-            chat_history.save_chat(user_data['id'], suggestion, response)
-            st.rerun()
+            # On appelle simplement notre fonction centrale !
+            handle_response(suggestion)
 
 # Quick actions
 st.markdown("---")

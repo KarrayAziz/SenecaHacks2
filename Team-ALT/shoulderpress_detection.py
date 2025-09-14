@@ -2,6 +2,10 @@ import cv2
 import streamlit as st
 from pose_utils import pose, mp_drawing, mp_pose, calculate_angle
 
+# Add this to each exercise detection page
+from database.models import WorkoutTracker
+from auth.authenticator import get_authenticator
+
 def shoulder_press_tracker():
     st.subheader("📹 Shoulder Press Tracker - Live Webcam Feed")
     stframe = st.empty()
@@ -45,3 +49,4 @@ def shoulder_press_tracker():
 
     cap.release()
     cv2.destroyAllWindows()
+

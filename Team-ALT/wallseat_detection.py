@@ -3,6 +3,10 @@ import streamlit as st
 import time
 from pose_utils import pose, mp_drawing, mp_pose, calculate_angle
 
+# Add this to each exercise detection page
+from database.models import WorkoutTracker
+from auth.authenticator import get_authenticator
+
 def wall_sit_tracker():
     st.subheader("📹 Wall Sit Tracker - Live Webcam Feed")
     stframe = st.empty()
@@ -63,3 +67,5 @@ def wall_sit_tracker():
 
     cap.release()
     cv2.destroyAllWindows()
+
+ 

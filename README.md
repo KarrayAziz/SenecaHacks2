@@ -46,7 +46,7 @@ Gym intimidation and fear of injury deter many, especially beginners, from exerc
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/cjkejw/Team-ALT.git
+    git clone https://github.com/KarrayAziz/SenecaHacks2.git
     cd Team-ALT
     ```
 
